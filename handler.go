@@ -154,9 +154,5 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 		groups: append(h.groups, name),
 	}
 
-	if len(h.groups) == 0 {
-		newH.attrs = addToGroups(newH.groups, []slog.Attr{}, h.attrs...)
-	}
-
 	return newH
 }

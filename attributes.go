@@ -107,65 +107,72 @@ func addToGroups(groups []string, withAttrs []slog.Attr, newAttrs ...slog.Attr) 
 
 func zapFields(ctx context.Context, groups []string, withAttrs []slog.Attr, replace ReplaceAttrFunc, fromCtx AttrsFromCtxFunc, rec slog.Record) []zapcore.Field {
 	var fields []zapcore.Field
-
-	var traverseGroups []string
 	groupCount := len(groups)
-	if groupCount != 0 {
-		for i, g := range groups {
-			traverseGroups = append(traverseGroups, g)
-			fields = append(fields, zap.Namespace(g))
 
-			var gattr slog.Attr
-			for _, wa := range withAttrs {
-				if wa.Key == g && wa.Value.Kind() == slog.KindGroup {
-					gattr = wa
-					break
-				}
-			}
-
-			if gattr.Key == "" {
+	if groupCount == 0 {
+		for _, attr := range withAttrs {
+			if ignoreAttr(attr) {
 				continue
 			}
 
-			var nextGroup string
-			if i+1 < groupCount {
-				nextGroup = groups[i+1]
+			attr = replace(groups, attr)
+
+			if ignoreAttr(attr) {
+				continue
 			}
 
-			for _, attr := range gattr.Value.Group() {
-				if ignoreAttr(attr) {
-					continue
-				}
-
-				if nextGroup != "" && attr.Key == nextGroup && attr.Value.Kind() == slog.KindGroup {
-					withAttrs[0] = attr
-					continue
-				}
-
-				attr = replace(traverseGroups, attr)
-				if ignoreAttr(attr) {
-					continue
-				}
-
-				fields = append(fields, attrToZapField(attr))
-			}
+			fields = append(fields, attrToZapField(attr))
 		}
-
-		withAttrs = []slog.Attr{}
 	}
 
-	for _, attr := range withAttrs {
-		if ignoreAttr(attr) {
-			continue
+	var traverseGroups []string
+
+	for i, g := range groups {
+		traverseGroups = append(traverseGroups, g)
+		fields = append(fields, zap.Namespace(g))
+
+		var nextGroup string
+		if i+1 < groupCount {
+			nextGroup = groups[i+1]
 		}
 
-		attr = replace(traverseGroups, attr)
+		for _, wa := range withAttrs {
+			withAttrs = withAttrs[1:]
 
-		if ignoreAttr(attr) {
-			continue
+			if wa.Key == g && wa.Value.Kind() == slog.KindGroup {
+				for _, attr := range wa.Value.Group() {
+					if nextGroup != "" && attr.Key == nextGroup && attr.Value.Kind() == slog.KindGroup {
+						withAttrs = []slog.Attr{attr}
+						continue
+					}
+
+					if ignoreAttr(attr) {
+						continue
+					}
+
+					attr = replace(traverseGroups, attr)
+
+					if ignoreAttr(attr) {
+						continue
+					}
+
+					fields = append(fields, attrToZapField(attr))
+				}
+
+				break
+			}
+
+			if ignoreAttr(wa) {
+				continue
+			}
+
+			wa = replace(traverseGroups, wa)
+			if ignoreAttr(wa) {
+				continue
+			}
+
+			fields = append(fields, attrToZapField(wa))
 		}
-
-		fields = append(fields, attrToZapField(attr))
 	}
 
 	rec.Attrs(func(a slog.Attr) bool {
