@@ -75,6 +75,11 @@ type HandlerOptions struct {
 	AttrFromCtx AttrsFromCtxFunc
 }
 
+var DefaultOptions = HandlerOptions{
+	AddSource: true,
+	Level:     slog.LevelInfo,
+}
+
 // Handler implements [log/slog.Handler] interface.
 type Handler struct {
 	opts   HandlerOptions
